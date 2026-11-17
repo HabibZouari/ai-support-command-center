@@ -32,7 +32,11 @@ class GroqLLMClient:
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        return completion.choices[0].message.content
+        content = completion.choices[0].message.content
+        if not content or not content.strip():
+            # e.g. a reasoning model used up max_tokens before producing an answer
+            raise ValueError(f"empty completion from {model}")
+        return content
 
     def generate(
         self,

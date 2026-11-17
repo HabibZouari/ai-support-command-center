@@ -1,3 +1,4 @@
+import html
 import os
 
 import httpx
@@ -16,7 +17,10 @@ def api_request(method: str, path: str, token: str | None = None, json: dict | l
         with httpx.Client(timeout=60.0) as client:
             response = client.request(method, f"{API_BASE_URL}{path}", headers=headers, json=json)
         if response.status_code >= 400:
-            detail = response.json().get("detail", response.text)
+            try:
+                detail = response.json().get("detail", response.text)
+            except ValueError:  # non-JSON error body (e.g. a proxy 502 page)
+                detail = response.text
             st.error(f"{response.status_code}: {detail}")
             return None
         return response.json()
@@ -325,13 +329,16 @@ with chat_tab:
         )
         if result:
             st.success("Agent response")
-            st.markdown(f'<div class="agent-response">{result["response"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="agent-response">{html.escape(result["response"])}</div>', unsafe_allow_html=True)
             st.json(result)
     st.markdown("</div>", unsafe_allow_html=True)
 
 with kb_tab:
     st.markdown('<div class="section-card"><h3>Knowledge Base Ingestion</h3><p>Push policy or support content into the RAG vector store. Admin token required.</p>', unsafe_allow_html=True)
-    st.warning("This endpoint requires an admin token.")
+    if st.session_state.token:
+        st.info("Session active. Ingestion only works for admin accounts; other users will get a 403.")
+    else:
+        st.warning("Please log in with admin credentials in the Access tab first.")
     with st.form("kb_form"):
         title = st.text_input("Title", value="Refund Policy")
         category = st.text_input("Category", value="billing")

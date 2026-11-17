@@ -4,6 +4,7 @@ and load balancers.
 """
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.core.config import settings
@@ -28,5 +29,9 @@ def readiness():
     except Exception:  # noqa: BLE001
         db_ok = False
 
-    status_code = "ok" if db_ok else "degraded"
-    return {"status": status_code, "database": "connected" if db_ok else "unreachable"}
+    body = {
+        "status": "ok" if db_ok else "degraded",
+        "database": "connected" if db_ok else "unreachable",
+    }
+    # A 503 is what makes the Kubernetes readiness probe actually fail
+    return JSONResponse(content=body, status_code=200 if db_ok else 503)
