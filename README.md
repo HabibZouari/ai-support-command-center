@@ -4,13 +4,13 @@
 
 ### 🚀 Enterprise-grade **multi-agent** customer support: RAG + Agentic AI + MLOps + Production Infra
 
-[![CI/CD](https://github.com/your-org/ai-support-platform/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/your-org/ai-support-platform/actions/workflows/ci-cd.yml)
+[![CI/CD](https://github.com/HabibZouari/ai-support-command-center/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/HabibZouari/ai-support-command-center/actions/workflows/ci-cd.yml)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)](https://fastapi.tiangolo.com)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2-orange.svg)](https://langchain-ai.github.io/langgraph/)
 ![Pinecone](https://img.shields.io/badge/Pinecone-000000?logo=pinecone&logoColor=white)
 ![Groq](https://img.shields.io/badge/Groq-F55036)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)
 ![MLflow](https://img.shields.io/badge/MLflow-0194E2?logo=mlflow&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?logo=kubernetes&logoColor=white)
@@ -50,9 +50,9 @@ A full-stack AI platform that handles customer support end-to-end: a **LangGraph
 | 📖 | **Knowledge agent** | RAG question answering over Pinecone |
 | 🛠️ | **Support agent** | Technical troubleshooting using RAG plus tool calls |
 | 💳 | **Billing agent** | Billing and refund handling using RAG plus tool calls |
-| 🚨 | **Quality gate** | Auto-escalates to a human when confidence is below 0.6 |
+| 🚨 | **Quality gate** | Auto-escalates to a human when retrieval confidence is below 0.5 (`SIMILARITY_THRESHOLD - 0.15`) |
 | 🧑‍💼 | **Escalation agent** | Human handoff |
-| 🎫 | **Tickets & history** | Users, tickets and conversations stored in PostgreSQL |
+| 🎫 | **Tickets & history** | Users, tickets, conversations and agent runs stored in MySQL |
 | 🔐 | **Auth** | JWT with bcrypt password hashing |
 | 📊 | **MLOps** | Every agent run logged to MLflow, plus an offline golden-dataset evaluation |
 | 📈 | **Observability** | Structured JSON logs (structlog), Prometheus `/metrics`, Grafana |
@@ -70,7 +70,7 @@ flowchart TD
     R -- support --> S[🛠️ Support Agent<br/>RAG + Tools]
     R -- billing --> B[💳 Billing Agent<br/>RAG + Tools]
     R -- escalation --> E[🧑‍💼 Escalation Agent<br/>human handoff]
-    K --> Q{🚦 Quality Gate<br/>confidence < 0.6?}
+    K --> Q{🚦 Quality Gate<br/>confidence < 0.5?}
     S --> Q
     B --> Q
     Q -- ok --> END[✅ Response]
@@ -79,7 +79,7 @@ flowchart TD
     K -.-> PC[(🌲 Pinecone)]
     S -.-> PC
     B -.-> PC
-    API -.-> PG[(🐘 PostgreSQL 16<br/>users · tickets · messages · runs)]
+    API -.-> PG[(🐬 MySQL 8<br/>users · tickets · messages · runs)]
     API -.-> ML[🧪 MLflow<br/>run logging · offline eval]
 ```
 
@@ -110,7 +110,7 @@ flowchart TD
                      │                  │                          │
                      │        ┌─────────▼──────────┐              │
                      │        │    Quality Gate     │              │
-                     │        │  confidence < 0.6?  │              │
+                     │        │  confidence < 0.5?  │              │
                      │        └─────────┬───────────┘              │
                      │           ok ▼       ▼ low conf             │
                      │          [END]  ┌────▼────────┐             │
@@ -123,7 +123,7 @@ flowchart TD
      ┌─────────────────────────────────────┼──────────────────────────────────┐
      │                                     │                                  │
 ┌────▼───────────────┐         ┌───────────▼──────────┐          ┌───────────▼──────┐
-│   PostgreSQL 16    │         │  Pinecone (Vector DB) │          │  MLflow Tracking │
+│      MySQL 8       │         │  Pinecone (Vector DB) │          │  MLflow Tracking │
 │  Users · Tickets   │         │  RAG Retrieval        │          │  Run logging     │
 │  Messages · Runs   │         │  all-MiniLM-L6-v2     │          │  Offline eval    │
 └────────────────────┘         └──────────────────────┘          └──────────────────┘
@@ -139,7 +139,7 @@ sequenceDiagram
     autonumber
     actor U as 👤 User
     participant A as ⚙️ FastAPI
-    participant D as 🐘 PostgreSQL
+    participant D as 🐬 MySQL
     participant G as 🤖 LangGraph
     participant P as 🌲 Pinecone
     participant L as ⚡ Groq
@@ -164,13 +164,13 @@ sequenceDiagram
 User → POST /api/v1/chat
   │
   ├─ JWT auth (deps.py)
-  ├─ Fetch ticket + conversation history (PostgreSQL)
+  ├─ Fetch ticket + conversation history (MySQL)
   ├─ run_agent_pipeline(ticket_id, message, history)
   │    ├─ Router classifies intent → route ∈ {knowledge, support, billing, escalation}
   │    ├─ Specialist agent: embed query → Pinecone top-k → Groq completion
   │    ├─ Quality gate: confidence check → auto-escalate if low
   │    └─ Returns AgentState {response, agent_used, confidence, trace, latency_ms}
-  ├─ Persist agent message to conversation (PostgreSQL)
+  ├─ Persist agent message to conversation (MySQL)
   ├─ Background task: log AgentRun to MLflow
   └─ Return ChatResponse JSON
 ```
@@ -187,7 +187,7 @@ User → POST /api/v1/chat
 | ⚡ **LLM** | Groq (`openai/gpt-oss-120b`, fallback `openai/gpt-oss-20b`) |
 | 🌲 **Vector DB** | Pinecone (serverless) |
 | 🔢 **Embeddings** | sentence-transformers `all-MiniLM-L6-v2` (384-dim) |
-| 🐘 **Database** | PostgreSQL 16 + SQLAlchemy 2.0 |
+| 🐬 **Database** | MySQL 8.0 (PyMySQL) + SQLAlchemy 2.0 |
 | 🧪 **MLOps** | MLflow 2.17: run tracking, offline eval, prompt versioning |
 | 📈 **Observability** | structlog (structured JSON logs), Prometheus `/metrics`, Grafana |
 | 🔐 **Auth** | JWT (python-jose) + bcrypt password hashing |
@@ -202,6 +202,7 @@ User → POST /api/v1/chat
 ```
 ai-support-platform/
 ├── 🤖 app/
+│   ├── main.py                 # FastAPI app, lifespan, admin seeding
 │   ├── agents/                 # LangGraph multi-agent system
 │   │   ├── state.py            #   shared TypedDict graph state
 │   │   ├── orchestrator.py     #   graph wiring + entry point
@@ -236,7 +237,12 @@ ai-support-platform/
 │   └── ci-cd.yml               # lint → test → eval → build → push → deploy
 ├── 📊 scripts/
 │   └── run_offline_eval.py     # golden-dataset regression eval + MLflow logging
+├── 🖥️ frontend/
+│   └── streamlit_app.py        # Streamlit command-center UI
 ├── 🧪 tests/
+│   ├── test_agents.py          # router, quality gate, graph, billing, chunking
+│   ├── test_api.py             # auth, tickets, chat (SQLite + stubbed LLM)
+│   ├── test_health_routes.py   # liveness / readiness
 │   └── golden_eval_dataset.json
 ├── 📈 infra/
 │   └── prometheus.yml
@@ -253,23 +259,26 @@ ai-support-platform/
 ### 🐳 Option A: docker-compose (recommended)
 
 ```bash
-git clone https://github.com/your-org/ai-support-platform.git
-cd ai-support-platform
+git clone https://github.com/HabibZouari/ai-support-command-center.git
+cd ai-support-command-center
 
 # 1. Configure secrets
 cp .env.example .env
-# Edit .env: set GROQ_API_KEY and PINECONE_API_KEY
+# Edit .env: set GROQ_API_KEY, PINECONE_API_KEY, a random SECRET_KEY, and
+# DEFAULT_ADMIN_PASSWORD (the admin account is only created if it is set)
 
 # 2. Start the full stack
 docker compose up --build
 
-# 3. Open API docs
+# 3. Open the API docs and the UI
 open http://localhost:8000/docs
+open http://localhost:8501
 ```
 
 | Service | URL |
 |---|---|
 | ⚙️ API docs | http://localhost:8000/docs |
+| 🖥️ Streamlit UI | http://localhost:8501 |
 | 🧪 MLflow | http://localhost:5000 |
 | 📈 Prometheus | http://localhost:9090 |
 | 📊 Grafana | http://localhost:3000 (admin / admin) |
@@ -284,7 +293,7 @@ uvicorn app.main:app --reload
 # → http://localhost:8000/docs
 ```
 
-> 💡 You need a running PostgreSQL instance for this option. Point `DATABASE_URL` in `.env` at it, or use Option A, which starts everything for you.
+> 💡 You need a running MySQL 8 instance for this option. Point `DATABASE_URL` in `.env` at it, or use Option A, which starts everything for you.
 
 ---
 
@@ -323,6 +332,17 @@ All results are logged as an MLflow run. This script is wired into the CI/CD pip
 
 ---
 
+## 🧪 Running the Tests
+
+```bash
+pip install -r requirements.txt
+pytest tests/ -v
+```
+
+The suite needs no API keys or running services: the LLM and vector store are stubbed and the API tests use an in-memory SQLite database.
+
+---
+
 ## 🚦 CI/CD Pipeline
 
 ```mermaid
@@ -340,12 +360,12 @@ flowchart LR
 | Stage | What it does |
 |---|---|
 | 🧹 **lint** | `ruff check` + format, `mypy` on core/schemas |
-| 🧪 **test** | `pytest` (unit + integration) against a live PostgreSQL service |
+| 🧪 **test** | `pytest` (unit + API tests; the API tests use in-memory SQLite and a stubbed LLM, so no keys are needed) |
 | 📊 **eval** | Offline golden-dataset eval; routing accuracy gate |
 | 🐳 **build** | Docker multi-stage build → push to GHCR (SHA tag + `latest`) |
 | 🚀 **deploy** | `kubectl set image` → rollout → smoke test `/health` + `/ready` |
 
-The deploy job targets the `production` environment. Add GitHub environment protection rules if you want manual approval.
+The deploy job only runs when the repository variable `ENABLE_K8S_DEPLOY` is `true`, and targets the `production` environment. Add GitHub environment protection rules if you want manual approval.
 
 ---
 
@@ -374,7 +394,7 @@ kubectl get pods -n ai-support
 | 🖥️ CPU target | ≥ 65% |
 | 🧠 Memory target | ≥ 75% |
 | ⏳ Scale-down stabilisation | 5 minutes, to avoid churn |
-| ❤️ Probes | `/health` (liveness), `/ready` (readiness, checks DB) |
+| ❤️ Probes | `/health` (liveness), `/ready` (readiness, checks DB, returns **503** when the DB is down) |
 
 ---
 
@@ -386,7 +406,10 @@ GitHub → Settings → Secrets and variables → Actions
 |---|---|
 | `GROQ_API_KEY` | 🔑 Groq API key (used in eval job) |
 | `PINECONE_API_KEY` | 🌲 Pinecone API key (used in eval job) |
-| `KUBECONFIG` | ☸️ base64-encoded kubeconfig for the target cluster |
+| `KUBE_CONFIG` | ☸️ base64-encoded kubeconfig for the target cluster |
+| `SECRET_KEY` | 🔐 JWT signing key (the API refuses to start in production with the placeholder) |
+| `DATABASE_URL` | 🐬 MySQL connection string used by the deployed API |
+| `MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` | 🐬 Credentials for the in-cluster MySQL (aws-free profile) |
 
 ---
 
@@ -405,7 +428,8 @@ GitHub → Settings → Secrets and variables → Actions
 | Problem | Fix |
 |---|---|
 | 🔑 Groq or Pinecone errors on startup | Check `GROQ_API_KEY` and `PINECONE_API_KEY` in `.env` |
-| 🐘 `/ready` returns not ready | PostgreSQL is not reachable; check `DATABASE_URL` or run via docker-compose |
+| 🐬 `/ready` returns 503 | MySQL is not reachable; check `DATABASE_URL` or run via docker-compose |
+| 📚 KB ingestion returns `403` | Only admins can ingest; set `DEFAULT_ADMIN_PASSWORD` and log in as `DEFAULT_ADMIN_EMAIL` |
 | 🚫 `401 Unauthorized` | Token missing or expired; log in again at `/api/v1/auth/login` |
 | 📊 CI eval job fails | Routing accuracy dropped below 70%; check the MLflow run and the golden dataset |
 | 🐢 Slow first request | The embedding model downloads on first use |
