@@ -37,7 +37,7 @@ spec:
 
       containers:
         - name: api
-          image: ghcr.io/your-org/ai-support-platform:latest   # replaced by CI/CD
+          image: ghcr.io/habibzouari/ai-support-command-center:latest   # replaced by CI/CD
           imagePullPolicy: Always
           ports:
             - containerPort: 8000

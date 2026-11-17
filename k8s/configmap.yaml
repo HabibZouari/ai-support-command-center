@@ -24,7 +24,7 @@ data:
 
   # Embeddings
   EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
-  TRANSFORMERS_CACHE: "/app/.cache"
+  HF_HOME: "/app/hf_cache"
 
   # MLflow
   MLFLOW_TRACKING_URI: "http://mlflow-svc:5000"
