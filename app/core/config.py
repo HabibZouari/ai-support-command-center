@@ -18,7 +18,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
 
     # --- Database ---
-    database_url: str = "mysql+pymysql://support_user:support_pass@localhost:3307/support_db"
+    database_url: str = (
+        "mysql+pymysql://support_user:support_pass@localhost:3307/support_db"
+    )
 
     # --- Groq ---
     groq_api_key: str = ""
@@ -42,9 +44,27 @@ class Settings(BaseSettings):
     max_retrieval_docs: int = 5
     similarity_threshold: float = 0.65
 
+    # --- Default Admin ---
+    # The admin account is only seeded when DEFAULT_ADMIN_PASSWORD is set in the
+    # environment; there is intentionally no built-in default password.
+    default_admin_email: str = "admin@support.com"
+    default_admin_password: str = ""
+
+    # --- CORS ---
+    # Comma-separated list of allowed origins, e.g. "https://app.example.com"
+    cors_origins: str = "*"
+
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def uses_default_secret_key(self) -> bool:
+        return self.secret_key.startswith("change-this")
 
 
 @lru_cache

@@ -27,6 +27,7 @@ class AgentState(TypedDict, total=False):
     confidence_score: float
     escalated: bool
     escalation_reason: str | None
+    _needs_escalation: bool  # set by the quality gate, read by its conditional edge
 
     # --- Observability ---
     latency_ms: int

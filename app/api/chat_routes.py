@@ -4,13 +4,22 @@ to a ticket, runs it through the multi-agent LangGraph pipeline, persists
 the conversation, and returns the agent's response.
 """
 
+import json
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import run_agent_pipeline
 from app.api.deps import get_current_user
 from app.core.logging import get_logger
-from app.db.models import Message, SenderType, Ticket, TicketStatus, User
+from app.db.models import (
+    AgentRun,
+    Message,
+    SenderType,
+    Ticket,
+    TicketStatus,
+    User,
+)
 from app.db.session import get_db
 from app.schemas.schemas import ChatRequest, ChatResponse
 from app.services.mlflow_logger import log_agent_run
@@ -59,11 +68,19 @@ def chat(
     ]
 
     # Run the multi-agent pipeline
-    result = run_agent_pipeline(
-        ticket_id=ticket.id,
-        user_message=payload.message,
-        conversation_history=history,
-    )
+    try:
+        result = run_agent_pipeline(
+            ticket_id=ticket.id,
+            user_message=payload.message,
+            conversation_history=history,
+        )
+    except Exception as exc:
+        # LLM / vector-store outage: tell the client to retry instead of a bare 500
+        logger.error("agent_pipeline_failed", ticket_id=ticket.id, error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="The AI assistant is temporarily unavailable. Please try again shortly.",
+        ) from exc
 
     # Persist the agent's response
     agent_msg = Message(
@@ -73,6 +90,24 @@ def chat(
         content=result.get("final_response", ""),
     )
     db.add(agent_msg)
+
+    # Observability: one agent_runs row per pipeline invocation
+    db.add(
+        AgentRun(
+            ticket_id=ticket.id,
+            agent_name=result.get("agent_used", "unknown_agent"),
+            input_text=payload.message,
+            output_text=result.get("final_response", ""),
+            retrieved_doc_ids=json.dumps(result.get("sources", [])),
+            latency_ms=result.get("latency_ms", 0),
+            confidence_score=result.get("confidence_score", 0.0),
+            escalated=result.get("escalated", False),
+        )
+    )
+
+    # Keep the ticket category in sync with what the router detected
+    if result.get("category") and not ticket.category:
+        ticket.category = result["category"][:100]
 
     # Update ticket status if escalated
     if result.get("escalated"):

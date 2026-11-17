@@ -36,7 +36,7 @@ DATASET_PATH = (
 
 
 def load_golden_dataset() -> list[dict]:
-    with open(DATASET_PATH) as f:
+    with open(DATASET_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -128,13 +128,17 @@ def main():
     logger.info("starting_offline_evaluation", dataset_path=str(DATASET_PATH))
     eval_output = run_evaluation_suite()
 
+    # Windows consoles default to cp1252; never crash on a non-encodable character
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
+
     print("\n=== Offline Evaluation Results ===")
     for k, v in eval_output["aggregate"].items():
         print(f"  {k}: {v}")
 
     print("\n=== Per-case breakdown ===")
     for r in eval_output["results"]:
-        status = "✅" if r["route_correct"] else "❌"
+        status = "PASS" if r["route_correct"] else "FAIL"
         print(
             f"  {status} [{r['id']}] expected={r['expected_route']} actual={r['actual_route']} "
             f"keyword_coverage={r['keyword_coverage']} latency={r['latency_ms']}ms"

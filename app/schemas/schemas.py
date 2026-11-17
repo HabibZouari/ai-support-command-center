@@ -4,7 +4,7 @@ Pydantic request/response schemas for the API layer.
 
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.db.models import SenderType, TicketPriority, TicketStatus
 
@@ -13,7 +13,7 @@ from app.db.models import SenderType, TicketPriority, TicketStatus
 class UserCreate(BaseModel):
     email: EmailStr
     full_name: str
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=8, max_length=72)  # bcrypt ignores bytes past 72
 
 
 class UserLogin(BaseModel):
@@ -27,8 +27,7 @@ class UserOut(BaseModel):
     full_name: str
     is_admin: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Token(BaseModel):
@@ -50,8 +49,7 @@ class TicketOut(BaseModel):
     category: str | None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ---------- Chat / Messages ----------
@@ -67,8 +65,7 @@ class MessageOut(BaseModel):
     content: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChatResponse(BaseModel):
@@ -77,7 +74,7 @@ class ChatResponse(BaseModel):
     agent_used: str
     confidence_score: float
     escalated: bool
-    sources: list[str] = []
+    sources: list[str] = Field(default_factory=list)
     latency_ms: int
 
 
@@ -86,7 +83,7 @@ class KBDocumentIn(BaseModel):
     title: str
     content: str
     category: str | None = None
-    metadata: dict = {}
+    metadata: dict = Field(default_factory=dict)
 
 
 class KBIngestResponse(BaseModel):
@@ -98,4 +95,4 @@ class RetrievedChunk(BaseModel):
     text: str
     score: float
     source: str
-    metadata: dict = {}
+    metadata: dict = Field(default_factory=dict)

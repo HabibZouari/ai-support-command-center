@@ -5,6 +5,7 @@ specialized agent should handle the request.
 """
 
 import json
+import re
 
 from app.agents.state import AgentState
 from app.core.logging import get_logger
@@ -28,6 +29,28 @@ Respond ONLY with valid JSON in this exact format, nothing else:
 """
 
 
+VALID_ROUTES = {"knowledge", "support", "billing", "escalation"}
+DEFAULT_ROUTE = "knowledge"
+
+
+def parse_router_output(raw: str) -> tuple[str, str]:
+    """Extract (category, route) from the LLM output, falling back to safe defaults.
+
+    Tolerates markdown fences / extra prose around the JSON and rejects routes
+    the graph has no node for (which would otherwise crash the conditional edge).
+    """
+    match = re.search(r"\{.*\}", raw or "", re.DOTALL)
+    if not match:
+        raise ValueError("no JSON object in router output")
+    parsed = json.loads(match.group(0))
+    category = str(parsed.get("category", "general"))
+    route = str(parsed.get("route", DEFAULT_ROUTE)).strip().lower()
+    if route not in VALID_ROUTES:
+        logger.warning("router_invalid_route", route=route)
+        route = DEFAULT_ROUTE
+    return category, route
+
+
 def router_node(state: AgentState) -> AgentState:
     """Classify the incoming message and set the route for the graph."""
     llm = get_llm_client()
@@ -46,18 +69,14 @@ def router_node(state: AgentState) -> AgentState:
         system_prompt=ROUTER_SYSTEM_PROMPT,
         user_prompt=prompt,
         temperature=0.0,
-        max_tokens=150,
+        max_tokens=400,
     )
 
     try:
-        parsed = json.loads(
-            raw_response.strip().strip("`").removeprefix("json").strip()
-        )
-        category = parsed.get("category", "general")
-        route = parsed.get("route", "knowledge")
-    except (json.JSONDecodeError, AttributeError):
+        category, route = parse_router_output(raw_response)
+    except (ValueError, AttributeError):  # JSONDecodeError is a ValueError
         logger.warning("router_parse_failed", raw=raw_response)
-        category, route = "general", "knowledge"
+        category, route = "general", DEFAULT_ROUTE
 
     trace = state.get("trace", [])
     trace.append(

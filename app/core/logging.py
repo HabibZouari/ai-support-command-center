@@ -5,6 +5,7 @@ Produces JSON logs in production, pretty console logs in development.
 
 import logging
 import sys
+from typing import Any
 
 import structlog
 
@@ -13,13 +14,14 @@ from app.core.config import settings
 
 def configure_logging() -> None:
     """Configure structlog + stdlib logging to work together."""
-    shared_processors = [
+    shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
     ]
 
+    renderer: Any
     if settings.app_env == "production":
         renderer = structlog.processors.JSONRenderer()
     else:

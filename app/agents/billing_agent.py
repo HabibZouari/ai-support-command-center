@@ -37,12 +37,21 @@ def billing_node(state: AgentState) -> AgentState:
 
     tool_output = ""
     if any(kw in query.lower() for kw in ["refund", "money back", "charged"]):
-        amount_match = re.search(r"\$?(\d+(?:\.\d{1,2})?)", query)
-        amount = float(amount_match.group(1)) if amount_match else 0.0
-        result = TOOL_REGISTRY["create_refund_request"](
-            ticket_id=state.get("ticket_id", "unknown"), amount=amount
-        )
-        tool_output = f"\n\n[Tool Result — create_refund_request]: {result}"
+        # Only file a refund when the customer states an explicit amount ($12.50);
+        # otherwise just look up the latest payment, so policy questions
+        # ("what is your refund policy?") never create bogus refund requests.
+        amount_match = re.search(r"\$\s?(\d+(?:\.\d{1,2})?)", query)
+        if amount_match:
+            result = TOOL_REGISTRY["create_refund_request"](
+                ticket_id=state.get("ticket_id", "unknown"),
+                amount=float(amount_match.group(1)),
+            )
+            tool_output = f"\n\n[Tool Result — create_refund_request]: {result}"
+        else:
+            result = TOOL_REGISTRY["check_recent_payment"](
+                ticket_id=state.get("ticket_id", "unknown")
+            )
+            tool_output = f"\n\n[Tool Result — check_recent_payment]: {result}"
     elif any(
         kw in query.lower() for kw in ["plan", "subscription", "upgrade", "downgrade"]
     ):
