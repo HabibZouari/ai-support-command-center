@@ -13,12 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt .
 
-# Use Tsinghua mirror as fallback in case PyPI is slow/blocked
 RUN pip install --upgrade pip \
- && pip install --prefix=/install --no-cache-dir \
-    -i https://pypi.org/simple \
-    --extra-index-url https://mirrors.aliyun.com/pypi/simple \
-    -r requirements.txt
+ && pip install --prefix=/install --no-cache-dir -r requirements.txt
 
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
@@ -26,7 +22,7 @@ FROM python:3.11-slim AS runtime
 
 LABEL org.opencontainers.image.title="AI Customer Support Agent Platform" \
       org.opencontainers.image.description="FastAPI + LangGraph multi-agent support system" \
-      org.opencontainers.image.source="https://github.com/your-org/ai-support-platform"
+      org.opencontainers.image.source="https://github.com/HabibZouari/ai-support-command-center"
 
 # Runtime MySQL client lib
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -49,12 +45,14 @@ COPY frontend/  ./frontend/
 COPY scripts/   ./scripts/
 COPY tests/     ./tests/
 
-# Pre-download the embedding model so it is baked into the image
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
-
-# Sentence-transformers caches under ~/.cache — make it accessible
-ENV TRANSFORMERS_CACHE=/app/.cache
-RUN mkdir -p /app/.cache && chown -R appuser:appgroup /app
+# Bake the embedding model into the image. HF_HOME must be set BEFORE the download:
+# previously it was set afterwards, so the model landed in root's home and the
+# non-root runtime user re-downloaded it. The path is not mounted over by any
+# volume, so the baked cache is always visible at runtime.
+ENV HF_HOME=/app/hf_cache
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')" \
+ && mkdir -p /app/.cache \
+ && chown -R appuser:appgroup /app
 
 USER appuser
 

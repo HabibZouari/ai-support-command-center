@@ -7,7 +7,6 @@ networks:
 volumes:
   mysql-data:
   mlflow-data:
-  model-cache:
 
 # ── Services ────────────────────────────────────────────────────────────────
 services:
@@ -68,11 +67,9 @@ services:
       APP_ENV: development
     ports:
       - "8000:8000"
-      - "9000:8000"
     volumes:
       # Mount source for fast iteration — remove in production builds
       - ./app:/app/app
-      - model-cache:/app/.cache
     depends_on:
       mysql:
         condition: service_healthy
@@ -87,7 +84,7 @@ services:
     networks:
       - support-net
 
-  # ── Prometheus (scrapes /metrics from the API) ─────────────────────────────
+  # ── Streamlit frontend ──────────────────────────────────────────────────────
   frontend:
     build:
       context: .
@@ -112,6 +109,7 @@ services:
     networks:
       - support-net
 
+  # ── Prometheus (scrapes /metrics from the API) ─────────────────────────────
   prometheus:
     image: prom/prometheus:v2.55.1
     container_name: support-prometheus

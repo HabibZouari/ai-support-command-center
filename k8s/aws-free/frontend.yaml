@@ -21,7 +21,7 @@ spec:
         fsGroup: 1001
       containers:
         - name: frontend
-          image: ghcr.io/your-org/ai-support-platform:latest
+          image: ghcr.io/habibzouari/ai-support-command-center:latest
           imagePullPolicy: Always
           command:
             - streamlit
